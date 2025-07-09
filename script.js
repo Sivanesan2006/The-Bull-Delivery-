@@ -1,6 +1,9 @@
 
 // script.js
 
+import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js";
+import { getAuth, signInWithPhoneNumber, RecaptchaVerifier, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.5.0/firebase-auth.js";
+
 window.addEventListener('DOMContentLoaded', () => {
   const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
   if (isDarkMode) {
@@ -16,14 +19,15 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+const auth = window.auth;
+const db = getFirestore();
+
 window.loginWithEmail = async () => {
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
-  const auth = window.auth;
-
   try {
     await signInWithEmailAndPassword(auth, email, password);
-    alert('Login successful!');
+    showDashboard(email);
   } catch (err) {
     alert('Login error: ' + err.message);
   }
@@ -32,10 +36,12 @@ window.loginWithEmail = async () => {
 window.registerWithEmail = async () => {
   const email = document.getElementById('email').value;
   const password = document.getElementById('password').value;
-  const auth = window.auth;
-
   try {
-    await createUserWithEmailAndPassword(auth, email, password);
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    await setDoc(doc(db, "restaurants", result.user.uid), {
+      email: email,
+      type: "email"
+    });
     alert('Registration successful!');
   } catch (err) {
     alert('Registration error: ' + err.message);
@@ -44,8 +50,6 @@ window.registerWithEmail = async () => {
 
 window.sendOTP = () => {
   const phone = document.getElementById('phone').value;
-  const auth = window.auth;
-
   window.recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {
     size: 'invisible',
     callback: (response) => {}
@@ -62,12 +66,31 @@ window.sendOTP = () => {
 
 window.verifyOTP = () => {
   const code = document.getElementById('otp').value;
+  const restaurantName = document.getElementById('restaurantName').value;
   if (window.confirmationResult) {
     window.confirmationResult.confirm(code)
-      .then((result) => {
-        alert('Phone login successful!');
+      .then(async (result) => {
+        const phone = result.user.phoneNumber;
+        await setDoc(doc(db, "restaurants", result.user.uid), {
+          phone: phone,
+          name: restaurantName,
+          type: "phone"
+        });
+        showDashboard(phone);
       }).catch((error) => {
         alert('Invalid OTP: ' + error.message);
       });
   }
 };
+
+window.logout = () => {
+  signOut(auth).then(() => {
+    document.getElementById("dashboard").style.display = "none";
+    alert("Logged out.");
+  });
+};
+
+function showDashboard(identity) {
+  document.getElementById("dashboard").style.display = "block";
+  document.getElementById("welcomeMessage").innerText = `Welcome, ${identity}`;
+}
